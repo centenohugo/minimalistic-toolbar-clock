@@ -2,8 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   systemTimeZone, resolveTimeZone, getTimeParts, formatTime, formatDate, offsetFrom, formatUtcOffset,
-  zoneName, dayDelta, cityName, displayLabel, searchTimeZones, msUntilNextMinute,
+  zoneName, dayDelta, cityName, displayLabel, searchTimeZones, searchPlaces, placeKey, msUntilNextMinute,
 } from '../src/lib/time.js';
+import { CITIES, AREAS } from '../src/lib/places.js';
 
 const at = (iso) => new Date(iso);
 // ICU separates the day period with narrow or regular no-break spaces.
@@ -133,14 +134,12 @@ test('searchTimeZones matches cities, exonyms and accents in any case', () => {
   assert.deepEqual(searchTimeZones('sao'), ['America/Sao_Paulo', 'Africa/Sao_Tome']);
   assert.deepEqual(searchTimeZones('SÃO'), ['America/Sao_Paulo', 'Africa/Sao_Tome']);
   assert.deepEqual(searchTimeZones('buenos').map(cityName), ['Buenos Aires']);
-  assert.deepEqual(searchTimeZones('Pekín'), ['Asia/Shanghai']);
   assert.deepEqual(searchTimeZones('londres'), ['Europe/London']);
   assert.deepEqual(searchTimeZones('utc'), ['UTC']);
 });
 
 test('searchTimeZones finds legacy ids by their modern name', () => {
   assert.deepEqual(searchTimeZones('kolkata').map(cityName), ['Kolkata']);
-  assert.deepEqual(searchTimeZones('bombay').map(cityName), ['Kolkata']);
   assert.deepEqual(searchTimeZones('kyiv').map(cityName), ['Kyiv']);
 });
 
@@ -160,6 +159,70 @@ test('searchTimeZones limits, dedupes and ignores empty queries', () => {
   assert.equal(searchTimeZones('a', { limit: 12 }).length, 12);
   const timeZones = ['Asia/Calcutta', 'Asia/Kolkata', 'Asia/Calcutta'];
   assert.deepEqual(searchTimeZones('kolkata', { timeZones }), ['Asia/Calcutta']);
+});
+
+test('searchPlaces finds a city that shares a zone, under its own name', () => {
+  assert.deepEqual(searchPlaces('miami'), [
+    { timeZone: 'America/New_York', name: 'Miami', region: 'America', label: 'Miami' },
+  ]);
+  assert.equal(searchPlaces('Pekín')[0].timeZone, 'Asia/Shanghai');
+  assert.equal(searchPlaces('bombay')[0].name, 'Bombay');
+  assert.equal(searchPlaces('seattle')[0].timeZone, 'America/Los_Angeles');
+  assert.equal(searchPlaces('houston')[0].timeZone, 'America/Chicago');
+});
+
+test('searchPlaces still finds time zones, without a label', () => {
+  assert.deepEqual(searchPlaces('tokio'), [
+    { timeZone: 'Asia/Tokyo', name: 'Tokyo', region: 'Asia', label: '' },
+  ]);
+  assert.equal(searchPlaces('utc')[0].region, '');
+});
+
+test('searchPlaces expands states and countries to their zones, main one first', () => {
+  const zones = (q) => searchPlaces(q).filter((p) => p.region !== 'America').map((p) => p.timeZone);
+  assert.deepEqual(zones('texas'), ['America/Chicago', 'America/Denver']);
+  assert.deepEqual(zones('Tejas'), ['America/Chicago', 'America/Denver']);
+  assert.deepEqual(zones('california'), ['America/Los_Angeles']);
+  const us = ['America/New_York', 'America/Chicago', 'America/Denver', 'America/Phoenix',
+    'America/Los_Angeles', 'America/Anchorage', 'Pacific/Honolulu'];
+  assert.deepEqual(zones('estados unidos'), us);
+  assert.deepEqual(zones('EEUU'), us);
+  assert.deepEqual(searchPlaces('texas')[0],
+    { timeZone: 'America/Chicago', name: 'Chicago', region: 'Texas', label: '' });
+});
+
+test('searchPlaces drops mere substrings when something better matches', () => {
+  const cities = searchPlaces('usa').map((p) => p.name);
+  assert.ok(cities.includes('New York'));
+  assert.ok(!cities.includes('Jerusalem'));
+  // Only substrings: they stay.
+  assert.deepEqual(searchPlaces('usak').map((p) => p.name), ['Lusaka']);
+});
+
+test('searchPlaces tells apart places with the same name', () => {
+  const zones = searchPlaces('washington').map((p) => p.timeZone);
+  assert.ok(zones.includes('America/New_York')); // the city
+  assert.ok(zones.includes('America/Los_Angeles')); // the state
+  const georgia = searchPlaces('georgia').map((p) => p.timeZone);
+  assert.deepEqual(georgia.slice(0, 2).sort(), ['America/New_York', 'Asia/Tbilisi']);
+});
+
+test('searchPlaces does not repeat a place', () => {
+  const places = searchPlaces('new york');
+  assert.equal(places.filter((p) => p.timeZone === 'America/New_York' && p.name === 'New York').length, 1);
+  assert.deepEqual(searchPlaces(''), []);
+  assert.deepEqual(searchPlaces('   '), []);
+});
+
+test('placeKey treats legacy and modern ids alike, and names apart', () => {
+  assert.equal(placeKey('Asia/Calcutta', 'Kolkata'), placeKey('Asia/Kolkata', 'Kolkata'));
+  assert.notEqual(placeKey('America/New_York', 'Miami'), placeKey('America/New_York', 'New York'));
+});
+
+test('search data only uses valid zones, and areas fit the suggestion limit', () => {
+  const ids = [...Object.keys(CITIES), ...AREAS.flatMap(([, zones]) => zones)];
+  for (const timeZone of ids) assert.doesNotThrow(() => new Intl.DateTimeFormat('en', { timeZone }), timeZone);
+  for (const [names, zones] of AREAS) assert.ok(zones.length <= 8, names[0]);
 });
 
 test('msUntilNextMinute stays within (0, 60000]', () => {

@@ -292,6 +292,8 @@ input {
 }
 
 .city {
+  flex: none;
+  max-width: 60%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -299,9 +301,12 @@ input {
 
 .region {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
   font-size: 11px;
   color: var(--muted);
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .suggestion-time {

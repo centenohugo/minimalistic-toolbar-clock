@@ -35,6 +35,7 @@ icons/                       extension icons (16, 32, 48, 128 px)
 src/background.js                service worker, redraws the icon every minute
 src/icon/render.js               draws the icon with OffscreenCanvas
 src/lib/time.js                  pure time helpers (tested)
+src/lib/places.js                major cities, states and countries for search
 src/lib/settings.js              settings schema and storage
 src/popup/                       popup UI
 test/                            node:test suites

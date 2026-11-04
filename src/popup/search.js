@@ -1,17 +1,16 @@
-// Compact zone search: an input with up to five suggestions under it.
+// Compact zone search: an input with up to eight suggestions under it, enough
+// to list every zone of the countries and states it knows.
 
-import { searchTimeZones, cityName } from '../lib/time.js';
+import { searchPlaces, placeKey } from '../lib/time.js';
 import { h, t } from './dom.js';
 
-const LIMIT = 5;
-
-const region = (timeZone) => (timeZone.includes('/') ? timeZone.split('/')[0].replace(/_/g, ' ') : '');
+const LIMIT = 8;
 
 /**
  * @param {{
  *   taken: () => Set<string>,
  *   timeText: (now: Date, timeZone: string) => string,
- *   onPick: (timeZone: string) => void,
+ *   onPick: (place: import('../lib/time.js').Place) => void,
  *   onClose: () => void,
  * }} options
  */
@@ -44,23 +43,24 @@ export function createSearch({ taken, timeText, onPick, onClose }) {
   function refresh() {
     const query = input.value.trim();
     const skip = taken();
-    results = query
-      ? searchTimeZones(query, { limit: LIMIT + skip.size }).filter((tz) => !skip.has(tz)).slice(0, LIMIT)
-      : [];
+    const hits = query ? searchPlaces(query, { limit: LIMIT + skip.size }) : [];
+    results = hits.filter((place) => !skip.has(placeKey(place.timeZone, place.name))).slice(0, LIMIT);
     const now = new Date();
-    list.replaceChildren(...results.map((tz, i) => h('li', {
+    list.replaceChildren(...results.map((place, i) => h('li', {
       class: 'suggestion',
       id: `suggestion-${i}`,
       role: 'option',
       onmousedown: (event) => event.preventDefault(), // keep focus in the input
       onmousemove: () => active !== i && setActive(i),
-      onclick: () => onPick(tz),
+      onclick: () => onPick(place),
     },
-      h('span', { class: 'city' }, cityName(tz)),
-      h('span', { class: 'region' }, region(tz)),
-      h('span', { class: 'suggestion-time' }, timeText(now, tz)),
+      h('span', { class: 'city' }, place.name),
+      h('span', { class: 'region' }, place.region),
+      h('span', { class: 'suggestion-time' }, timeText(now, place.timeZone)),
     )));
-    if (query && !results.length) list.append(h('li', { class: 'empty' }, t('noResults')));
+    if (query && !results.length) {
+      list.append(h('li', { class: 'empty' }, t(hits.length ? 'alreadyAdded' : 'noResults')));
+    }
     input.setAttribute('aria-expanded', String(results.length > 0));
     setActive(Math.min(active, Math.max(results.length - 1, 0)));
   }
