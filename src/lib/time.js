@@ -1,6 +1,8 @@
 // Pure time helpers shared by the service worker and the popup. No chrome.*
 // APIs here, so everything can be tested with node:test.
 
+import { CITIES, AREAS } from './places.js';
+
 // ICU still reports some zones by their legacy ids; map them to the current
 // ones so city names and search use modern spellings.
 const LEGACY_IDS = {
@@ -25,18 +27,13 @@ const LEGACY_IDS = {
   'Pacific/Truk': 'Pacific/Chuuk',
 };
 
-// Spanish names (already normalized) that differ from the IANA city, by modern id.
+// Spanish spellings (already normalized) of the IANA city, by modern id.
 const EXONYMS = {
-  'America/New_York': ['nueva york', 'washington', 'miami', 'boston'],
-  'America/Los_Angeles': ['san francisco'],
+  'America/New_York': ['nueva york'],
   'America/Mexico_City': ['ciudad de mexico'],
   'America/Santiago': ['santiago de chile'],
-  'America/Sao_Paulo': ['rio de janeiro'],
   'America/Havana': ['la habana'],
-  'America/Guayaquil': ['quito'],
-  'Atlantic/Canary': ['canarias', 'tenerife', 'las palmas'],
-  'Europe/London': ['londres', 'edimburgo'],
-  'Europe/Madrid': ['barcelona'],
+  'Europe/London': ['londres'],
   'Europe/Lisbon': ['lisboa'],
   'Europe/Rome': ['roma'],
   'Europe/Warsaw': ['varsovia'],
@@ -45,19 +42,16 @@ const EXONYMS = {
   'Europe/Brussels': ['bruselas'],
   'Europe/Vienna': ['viena'],
   'Europe/Prague': ['praga'],
-  'Europe/Zurich': ['ginebra', 'berna'],
   'Europe/Athens': ['atenas'],
   'Europe/Istanbul': ['estambul'],
   'Europe/Moscow': ['moscu'],
   'Africa/Cairo': ['el cairo'],
-  'Africa/Johannesburg': ['johannesburgo', 'ciudad del cabo'],
-  'Asia/Jerusalem': ['jerusalen', 'tel aviv'],
+  'Africa/Johannesburg': ['johannesburgo'],
+  'Asia/Jerusalem': ['jerusalen'],
   'Asia/Tehran': ['teheran'],
-  'Asia/Kolkata': ['bombay', 'mumbai', 'nueva delhi', 'delhi', 'calcuta'],
-  'Asia/Ho_Chi_Minh': ['hanoi'],
+  'Asia/Kolkata': ['calcuta'],
   'Asia/Jakarta': ['yakarta'],
   'Asia/Singapore': ['singapur'],
-  'Asia/Shanghai': ['pekin', 'beijing'],
   'Asia/Seoul': ['seul'],
   'Asia/Tokyo': ['tokio'],
   'Australia/Sydney': ['sidney'],
@@ -243,6 +237,20 @@ function matchRank(timeZone, q) {
   return -1;
 }
 
+// IANA ids matching the normalized query q, best first.
+function rankedTimeZones(q, timeZones) {
+  const seen = new Set();
+  const hits = [];
+  for (const id of timeZones) {
+    if (seen.has(canonical(id))) continue;
+    seen.add(canonical(id));
+    const rank = matchRank(id, q);
+    if (rank >= 0) hits.push({ id, rank, city: normalize(cityName(id)) });
+  }
+  return hits.sort((a, b) => a.rank - b.rank || (a.city < b.city ? -1 : a.city > b.city ? 1 : 0)
+    || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
 /**
  * Up to `limit` IANA ids matching `query`, case- and accent-insensitive,
  * matching city or region; city prefix matches first. Also matches common
@@ -254,17 +262,83 @@ function matchRank(timeZone, q) {
 export function searchTimeZones(query, { limit = 5, timeZones = defaultTimeZones() } = {}) {
   const q = normalize(query || '');
   if (!q) return [];
-  const seen = new Set();
+  return rankedTimeZones(q, timeZones).slice(0, limit).map((h) => h.id);
+}
+
+// -1: the name is the query, 0: starts with it, 1: a word does, 2: anywhere, null: no match.
+function nameRank(name, q) {
+  const n = normalize(name);
+  if (n === q) return -1;
+  if (n.startsWith(q)) return 0;
+  if (n.includes(` ${q}`)) return 1;
+  return n.includes(q) ? 2 : null;
+}
+
+/**
+ * Identifies a place in the zone list: one zone can appear under several
+ * names ("New York", "Miami"), but each name only once.
+ * @param {string} timeZone
+ * @param {string} name  Name shown for it.
+ * @returns {string}
+ */
+export function placeKey(timeZone, name) {
+  return `${canonical(timeZone)}|${name}`;
+}
+
+/**
+ * @typedef {Object} Place
+ * @property {string} timeZone  IANA id.
+ * @property {string} name      Name to show: the zone's city, or the city searched.
+ * @property {string} region    Second text: the state or country searched, else the IANA region.
+ * @property {string} label     Label for a zone added from here; empty keeps the derived one.
+ */
+
+/**
+ * Up to `limit` places matching `query`: time zones, major cities that share
+ * one ("Miami") and states or countries, which expand to their zones ("Texas").
+ * Exact names come first. Mere substrings only count when nothing else matches.
+ * @param {string} query
+ * @param {{ limit?: number, timeZones?: string[] }} [options]
+ * @returns {Place[]}
+ */
+export function searchPlaces(query, { limit = 8, timeZones = defaultTimeZones() } = {}) {
+  const q = normalize(query || '');
+  if (!q) return [];
+  const iana = (id) => (id.includes('/') ? id.split('/')[0].replace(/_/g, ' ') : '');
   const hits = [];
-  for (const id of timeZones) {
-    if (seen.has(canonical(id))) continue;
-    seen.add(canonical(id));
-    const rank = matchRank(id, q);
-    if (rank >= 0) hits.push({ id, rank, city: normalize(cityName(id)) });
+
+  for (const { id, rank, city } of rankedTimeZones(q, timeZones)) {
+    hits.push({ rank: city === q ? -1 : rank, sort: city, timeZone: id, name: cityName(id), region: iana(id), label: '' });
   }
-  hits.sort((a, b) => a.rank - b.rank || (a.city < b.city ? -1 : a.city > b.city ? 1 : 0)
-    || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  return hits.slice(0, limit).map((h) => h.id);
+  for (const [names, zones] of AREAS) {
+    const matches = names.map((name) => [nameRank(name, q), name]).filter(([rank]) => rank !== null);
+    if (!matches.length) continue;
+    const [rank, name] = matches.reduce((best, m) => (m[0] < best[0] ? m : best));
+    for (const timeZone of zones) {
+      hits.push({ rank, sort: normalize(name), timeZone, name: cityName(timeZone), region: name, label: '' });
+    }
+  }
+  for (const [timeZone, names] of Object.entries(CITIES)) {
+    for (const name of names) {
+      const rank = nameRank(name, q);
+      if (rank !== null) hits.push({ rank, sort: normalize(name), timeZone, name, region: iana(timeZone), label: name });
+    }
+  }
+
+  const best = Math.min(...hits.map((hit) => hit.rank));
+  const seen = new Set();
+  return hits
+    .filter((hit) => hit.rank < 2 || best === 2)
+    // Stable: a state's zones keep their order, and a zone beats a city of the same name.
+    .sort((a, b) => a.rank - b.rank || (a.sort < b.sort ? -1 : a.sort > b.sort ? 1 : 0))
+    .filter((hit) => {
+      const key = placeKey(hit.timeZone, hit.name);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit)
+    .map(({ timeZone, name, region, label }) => ({ timeZone, name, region, label }));
 }
 
 /**

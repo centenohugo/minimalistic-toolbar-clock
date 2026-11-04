@@ -3,7 +3,7 @@
 import { loadSettings, saveSettings, onSettingsChanged, newZoneId, MAX_ZONES } from '../lib/settings.js';
 import {
   systemTimeZone, resolveTimeZone, formatTime, formatDate, offsetFrom, formatUtcOffset, zoneName, dayDelta,
-  displayLabel, msUntilNextMinute,
+  displayLabel, placeKey, msUntilNextMinute,
 } from '../lib/time.js';
 import { h, t, replaceKeepingFocus } from './dom.js';
 import { createSearch } from './search.js';
@@ -19,7 +19,8 @@ const app = document.getElementById('app');
 const list = h('ul', { class: 'zones' });
 
 const search = createSearch({
-  taken: () => new Set(settings.zones.map((z) => z.timeZone).filter(Boolean)),
+  taken: () => new Set(settings.zones.filter((z) => z.timeZone)
+    .map((z) => placeKey(z.timeZone, displayLabel(z, '')))),
   timeText,
   onPick: addZone,
   onClose: closeSearch,
@@ -194,10 +195,10 @@ function closeSearch() {
   addButton.focus();
 }
 
-function addZone(timeZone) {
+function addZone({ timeZone, label }) {
   if (settings.zones.length >= MAX_ZONES) return;
   closeSearch();
-  commit((s) => { s.zones.push({ id: newZoneId(), timeZone, label: '' }); });
+  commit((s) => { s.zones.push({ id: newZoneId(), timeZone, label }); });
 }
 
 function render() {
