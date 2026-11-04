@@ -136,6 +136,19 @@ export function formatTime(date, timeZone, { hour12, withDayPeriod = false, loca
 }
 
 /**
+ * Short date in a zone, in the locale's own order: "jue, 5 nov", "Thu, Nov 5".
+ * @param {Date} date
+ * @param {string} timeZone
+ * @param {string} [locale]
+ * @returns {string}
+ */
+export function formatDate(date, timeZone, locale) {
+  return new Intl.DateTimeFormat(locale, {
+    timeZone, weekday: 'short', day: 'numeric', month: 'short',
+  }).format(date);
+}
+
+/**
  * Minutes that `timeZone` is ahead of `baseTimeZone` at `date` (negative if behind).
  * @returns {number}
  */
