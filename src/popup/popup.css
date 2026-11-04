@@ -141,10 +141,22 @@ input {
   font-variant-numeric: tabular-nums;
 }
 
+.clock {
+  display: grid;
+  justify-items: end;
+}
+
 .time {
   font-size: 17px;
   font-variant-numeric: tabular-nums;
   text-align: right;
+  white-space: nowrap;
+}
+
+.date {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--muted);
   white-space: nowrap;
 }
 

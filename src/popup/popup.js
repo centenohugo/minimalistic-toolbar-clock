@@ -2,7 +2,7 @@
 
 import { loadSettings, saveSettings, onSettingsChanged, newZoneId, MAX_ZONES } from '../lib/settings.js';
 import {
-  systemTimeZone, resolveTimeZone, formatTime, offsetFrom, formatUtcOffset, zoneName, dayDelta,
+  systemTimeZone, resolveTimeZone, formatTime, formatDate, offsetFrom, formatUtcOffset, zoneName, dayDelta,
   displayLabel, msUntilNextMinute,
 } from '../lib/time.js';
 import { h, t, replaceKeepingFocus } from './dom.js';
@@ -58,6 +58,7 @@ function zoneRow(zone) {
   const primary = zone.id === settings.primaryId;
   const timeZone = resolveTimeZone(zone);
   const time = h('span', { class: 'time' });
+  const date = h('span', { class: 'date' });
   const offset = h('span', { class: 'offset' });
   const day = h('span', { class: 'day' });
   const official = h('span', { class: 'zone-name' });
@@ -65,6 +66,7 @@ function zoneRow(zone) {
   updaters.push((now) => {
     const delta = dayDelta(now, timeZone, systemTimeZone());
     time.textContent = timeText(now, timeZone);
+    date.textContent = formatDate(now, timeZone, locale);
     offset.textContent = formatUtcOffset(offsetFrom(now, timeZone, 'UTC'));
     day.textContent = delta > 0 ? t('tomorrow') : delta < 0 ? t('yesterday') : '';
     official.textContent = zoneName(now, timeZone, locale) || '';
@@ -111,7 +113,7 @@ function zoneRow(zone) {
       primary ? h('span', { class: 'hint' }, t('primaryHint')) : null,
     ),
     h('span', { class: 'shift' }, offset, day),
-    time,
+    h('span', { class: 'clock' }, time, date),
   );
 }
 

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  systemTimeZone, resolveTimeZone, getTimeParts, formatTime, offsetFrom, formatUtcOffset,
+  systemTimeZone, resolveTimeZone, getTimeParts, formatTime, formatDate, offsetFrom, formatUtcOffset,
   zoneName, dayDelta, cityName, displayLabel, searchTimeZones, msUntilNextMinute,
 } from '../src/lib/time.js';
 
@@ -40,6 +40,14 @@ test('formatTime in 24 h, 12 h and with the locale day period', () => {
   assert.equal(spaces(formatTime(date, 'UTC', { hour12: true, withDayPeriod: true, locale: 'en' })), '02:35 PM');
   assert.equal(spaces(formatTime(date, 'UTC', { hour12: true, withDayPeriod: true, locale: 'es' })), '02:35 p. m.');
   assert.equal(formatTime(date, 'UTC', { hour12: false, withDayPeriod: true }), '14:35');
+});
+
+test('formatDate gives the date in the zone, not the system one', () => {
+  // Auckland 2026-01-16, Los Angeles 2026-01-15.
+  const date = at('2026-01-15T20:00:00Z');
+  assert.equal(spaces(formatDate(date, 'Pacific/Auckland', 'es')), 'vie, 16 ene');
+  assert.equal(spaces(formatDate(date, 'America/Los_Angeles', 'es')), 'jue, 15 ene');
+  assert.equal(spaces(formatDate(date, 'America/Los_Angeles', 'en')), 'Thu, Jan 15');
 });
 
 test('half-hour and 45-minute zones', () => {
