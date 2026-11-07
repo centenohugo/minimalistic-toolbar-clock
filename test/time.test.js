@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   systemTimeZone, resolveTimeZone, getTimeParts, formatTime, formatDate, offsetFrom, formatUtcOffset,
-  zoneName, dayDelta, cityName, displayLabel, searchTimeZones, searchPlaces, placeKey, msUntilNextMinute,
+  zoneName, cityName, displayLabel, searchTimeZones, searchPlaces, placeKey, msUntilNextMinute,
 } from '../src/lib/time.js';
 import { CITIES, AREAS } from '../src/lib/places.js';
 
@@ -98,15 +98,8 @@ test('zoneName gives the official, capitalized name for the date and locale', ()
   assert.equal(zoneName(summer, 'America/New_York', 'en'), 'Eastern Daylight Time');
 });
 
-test('dayDelta across the date line', () => {
-  // Auckland 2026-01-16 09:00, Los Angeles 2026-01-15 12:00.
-  const date = at('2026-01-15T20:00:00Z');
-  assert.equal(dayDelta(date, 'Pacific/Auckland', 'America/Los_Angeles'), 1);
-  assert.equal(dayDelta(date, 'America/Los_Angeles', 'Pacific/Auckland'), -1);
-  assert.equal(offsetFrom(date, 'Pacific/Auckland', 'America/Los_Angeles'), 1260);
-  // Auckland 2026-01-15 23:00, Los Angeles 2026-01-15 02:00.
-  assert.equal(dayDelta(at('2026-01-15T10:00:00Z'), 'Pacific/Auckland', 'America/Los_Angeles'), 0);
-  assert.equal(dayDelta(date, 'UTC', 'UTC'), 0);
+test('offsetFrom across the date line', () => {
+  assert.equal(offsetFrom(at('2026-01-15T20:00:00Z'), 'Pacific/Auckland', 'America/Los_Angeles'), 1260);
 });
 
 test('cityName uses modern names for legacy ids', () => {
