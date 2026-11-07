@@ -183,15 +183,6 @@ export function zoneName(date, timeZone, locale) {
 }
 
 /**
- * Calendar day of `timeZone` relative to `baseTimeZone` at `date`: -1, 0 or 1.
- * @returns {-1|0|1}
- */
-export function dayDelta(date, timeZone, baseTimeZone) {
-  const day = (p) => Date.UTC(p.year, p.month - 1, p.day);
-  return Math.sign(day(wallClock(date, timeZone)) - day(wallClock(date, baseTimeZone)));
-}
-
-/**
  * Human city name from an IANA id: "America/New_York" -> "New York",
  * "America/Argentina/Buenos_Aires" -> "Buenos Aires".
  * @param {string} timeZone
