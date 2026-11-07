@@ -3,8 +3,9 @@
 # Minimalistic Toolbar Clock
 
 A Chrome extension that puts a minimal digital clock in the browser toolbar.
-The icon shows the time of one zone; click it to see all your time zones,
-add as many as you need, and change the settings.
+The icon shows the time of one zone; click it to see the time and date of all
+your time zones, add as many as you need by city, state or country, and change
+the settings.
 
 Built for Chrome and works in any Chromium browser (Brave, Edge...) with
 Manifest V3. Only asks for the `storage` and `alarms` permissions.
